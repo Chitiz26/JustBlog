@@ -32,7 +32,8 @@ public class AuthController {
             throw new IllegalArgumentException("Email already registered");
         }
 
-        user.setPassword(passwordEncoder.encode(user.getPassword())); // hash before saving
+        user.setPassword(passwordEncoder.encode(user.getPassword()));// hash before saving
+        user.setRole(User.Role.USER);
         User saved = userRepository.save(user);
 
         String token = jwtUtil.generateToken(saved.getUsername());
