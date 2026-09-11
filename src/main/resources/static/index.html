@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>JustBlog</title>
+    <meta name="description" content="JustBlog — a small place to write and read." />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+            href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500;1,600;1,700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;1,8..60,400&display=swap"
+            rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<header class="masthead">
+    <div class="masthead-inner">
+        <div>
+            <a href="#/" class="wordmark">JustBlog</a>
+            <span class="tagline">a small place to write and read</span>
+        </div>
+        <nav class="nav-links" id="nav-links">
+            <a href="#/">Home</a>
+
+            <span class="auth-out" data-auth="out">
+        <a href="#/login">Sign in</a>
+        <a href="#/register" class="nav-cta">Write with us</a>
+      </span>
+
+            <span class="auth-in" data-auth="in" hidden>
+        <a href="#/compose">New post</a>
+        <a href="#/profile" id="nav-username">Account</a>
+        <a href="#/" id="logout-link">Sign out</a>
+      </span>
+        </nav>
+    </div>
+    <div class="masthead-rule"></div>
+</header>
+
+<main id="app">
+
+    <!-- ============ HOME / FEED ============ -->
+    <section class="view" id="view-home" hidden>
+        <div class="wrap">
+            <div class="page-head">
+                <p class="eyebrow">The feed</p>
+                <h1>Recent stories</h1>
+            </div>
+            <div class="feed-list" id="feed-list">
+                <p class="loading-note">Loading stories…</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ ARTICLE ============ -->
+    <section class="view" id="view-post" hidden>
+        <div class="wrap">
+            <div id="post-content">
+                <p class="loading-note">Loading story…</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ LOGIN ============ -->
+    <section class="view" id="view-login" hidden>
+        <div class="wrap">
+            <div class="page-head">
+                <p class="eyebrow">Welcome back</p>
+                <h1>Sign in</h1>
+            </div>
+            <div class="form-panel">
+                <p class="form-error" id="login-error" hidden></p>
+                <form id="login-form" novalidate>
+                    <div class="field">
+                        <label for="login-username">Username</label>
+                        <input type="text" id="login-username" name="username" autocomplete="username" required />
+                    </div>
+                    <div class="field">
+                        <label for="login-password">Password</label>
+                        <input type="password" id="login-password" name="password" autocomplete="current-password" required />
+                    </div>
+                    <div class="form-foot">
+                        <button type="submit" class="btn" id="login-submit">Sign in</button>
+                        <p class="form-switch">New here? <a href="#/register">Create an account</a></p>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ REGISTER ============ -->
+    <section class="view" id="view-register" hidden>
+        <div class="wrap">
+            <div class="page-head">
+                <p class="eyebrow">Join the desk</p>
+                <h1>Create your account</h1>
+            </div>
+            <div class="form-panel">
+                <p class="form-error" id="register-error" hidden></p>
+                <form id="register-form" novalidate>
+                    <div class="field">
+                        <label for="register-username">Username</label>
+                        <input type="text" id="register-username" name="username" autocomplete="username" required minlength="3" />
+                    </div>
+                    <div class="field">
+                        <label for="register-email">Email</label>
+                        <input type="email" id="register-email" name="email" autocomplete="email" required />
+                    </div>
+                    <div class="field">
+                        <label for="register-password">Password</label>
+                        <input type="password" id="register-password" name="password" autocomplete="new-password" required minlength="6" />
+                        <p class="field-hint">At least 6 characters.</p>
+                    </div>
+                    <div class="form-foot">
+                        <button type="submit" class="btn" id="register-submit">Create account</button>
+                        <p class="form-switch">Already writing with us? <a href="#/login">Sign in</a></p>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ COMPOSE / EDIT ============ -->
+    <section class="view" id="view-compose" hidden>
+        <div class="wrap">
+            <div class="page-head">
+                <p class="eyebrow" id="compose-eyebrow">New story</p>
+                <h1 id="compose-heading">Write something</h1>
+            </div>
+            <div class="form-panel wide">
+                <p class="form-error" id="compose-error" hidden></p>
+                <form id="compose-form" novalidate>
+                    <div class="field">
+                        <label for="compose-title">Title</label>
+                        <input type="text" id="compose-title" name="title" required />
+                    </div>
+                    <div class="field">
+                        <label for="compose-slug">Slug <span style="text-transform:none; font-weight:400;">(optional — used in the story's URL)</span></label>
+                        <input type="text" id="compose-slug" name="slug" placeholder="auto-generated-from-title" />
+                    </div>
+                    <div class="field">
+                        <label for="compose-content">Story</label>
+                        <textarea id="compose-content" name="content" required></textarea>
+                    </div>
+                    <div class="form-foot">
+                        <button type="submit" class="btn" id="compose-submit">Publish</button>
+                        <button type="button" class="btn-text" id="compose-cancel">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ PROFILE ============ -->
+    <section class="view" id="view-profile" hidden>
+        <div class="wrap">
+            <div class="page-head">
+                <p class="eyebrow">Your account</p>
+                <h1>Profile</h1>
+            </div>
+            <div id="profile-content">
+                <p class="loading-note">Loading profile…</p>
+            </div>
+        </div>
+    </section>
+
+</main>
+
+<footer class="site-foot">
+    <p>JustBlog — a place to write.</p>
+</footer>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script src="script.js"></script>
+</body>
+</html>
