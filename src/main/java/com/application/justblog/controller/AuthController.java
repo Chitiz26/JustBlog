@@ -1,5 +1,4 @@
 package com.application.justblog.controller;
-
 import com.application.justblog.dto.AuthResponse;
 import com.application.justblog.dto.LoginRequest;
 import com.application.justblog.entity.User;

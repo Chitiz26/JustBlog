@@ -3,6 +3,7 @@ package com.application.justblog.service;
 import com.application.justblog.entity.Blog;
 import com.application.justblog.entity.Comment;
 import com.application.justblog.entity.User;
+import com.application.justblog.exception.ResourceNotFoundException;
 import com.application.justblog.repository.CommentRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -36,7 +37,7 @@ public class CommentService {
 
     public void deleteComment(Long commentId) {
         if (!commentRepository.existsById(commentId)) {
-            throw new RuntimeException("Comment not found with id: " + commentId);
+            throw new ResourceNotFoundException("Comment not found with id: " + commentId);
         }
         commentRepository.deleteById(commentId);
     }
