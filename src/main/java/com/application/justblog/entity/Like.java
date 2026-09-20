@@ -7,7 +7,7 @@ import lombok.NoArgsConstructor;
 
 import java.sql.Timestamp;
 
-@Entity
+@Entity //entity
 @Table(
         name = "likes",
         uniqueConstraints = @UniqueConstraint(

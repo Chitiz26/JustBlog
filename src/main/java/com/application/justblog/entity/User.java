@@ -11,7 +11,7 @@ import java.util.List;
 @Entity
 @Table(name = "users")
 @Data                 // Lombok: generates getters, setters, toString, equals, hashCode
-@NoArgsConstructor     // JPA requires a no-arg constructor
+@NoArgsConstructor     // JPA requires a no-arg constructor.
 @AllArgsConstructor
 public class User {
 
@@ -45,7 +45,7 @@ public class User {
     @Column(name = "updated_at", insertable = false, updatable = false)
     private Timestamp updatedAt;
 
-    // ---- Relationships (not actual DB columns, just for navigation in Java) ----
+    // ---- Relationships (not actual DB columns, just for navigation in Java) -----
 
     @OneToMany(mappedBy = "author", cascade = CascadeType.ALL, orphanRemoval = true)
     @com.fasterxml.jackson.annotation.JsonIgnore

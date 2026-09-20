@@ -1,6 +1,6 @@
 package com.application.justblog.dto;
 
-import lombok.Data;
+import lombok.Data; //lombok
 
 @Data
 public class LoginRequest {
