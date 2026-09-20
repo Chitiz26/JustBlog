@@ -20,7 +20,7 @@ public class Blog {
     @Column(name = "blog_id")
     private Long blogId;
 
-    @Column(nullable = false, length = 200)
+    @Column(nullable = false, length = 200) //nullable = false means a Blog MUST have an Info associated with it.
     private String title;
 
     @Column(nullable = false, columnDefinition = "TEXT")
