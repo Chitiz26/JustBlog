@@ -2,7 +2,6 @@ package com.application.justblog.service;
 
 import com.application.justblog.entity.Blog;
 import com.application.justblog.entity.User;
-import com.application.justblog.exception.ResourceNotFoundException;
 import com.application.justblog.repository.BlogRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -14,7 +13,7 @@ import java.util.List;
 public class BlogService {
 
     private final BlogRepository blogRepository;
-    private final UserService userService;
+    private final UserService userService;   // used to confirm the author actually exists
 
     public Blog createBlog(Long authorId, Blog blog) {
         User author = userService.getUserById(authorId);
@@ -28,7 +27,7 @@ public class BlogService {
 
     public Blog getBlogById(Long blogId) {
         return blogRepository.findById(blogId)
-                .orElseThrow(() -> new ResourceNotFoundException("Blog not found with id: " + blogId));
+                .orElseThrow(() -> new RuntimeException("Blog not found with id: " + blogId));
     }
 
     public List<Blog> getBlogsByAuthor(Long authorId) {
@@ -45,8 +44,8 @@ public class BlogService {
 
     public void deleteBlog(Long blogId) {
         if (!blogRepository.existsById(blogId)) {
-            throw new ResourceNotFoundException("Blog not found with id: " + blogId);
+            throw new RuntimeException("Blog not found with id: " + blogId);
         }
-        blogRepository.deleteById(blogId);
+        blogRepository.deleteById(blogId);   // cascades to its likes and comments
     }
 }

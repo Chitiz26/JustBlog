@@ -8,8 +8,6 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.Date;
 
 @Component
@@ -19,23 +17,18 @@ public class JwtUtil {
     private String secret;
 
     @Value("${jwt.expiration}")
-    private long expirationMillis;
+    private long expiration;
 
     private SecretKey getSigningKey() {
         return Keys.hmacShaKeyFor(secret.getBytes());
     }
 
-    // Creates a new token containing the username, issued now, expiring later.
-    // Uses java.time.Instant internally — only converted to Date at the very
-    // last moment, because the jjwt library's builder API still expects Date.
+    // Creates a new token containing the username, issued now, expiring later
     public String generateToken(String username) {
-        Instant now = Instant.now();
-        Instant expiry = now.plus(expirationMillis, ChronoUnit.MILLIS);
-
         return Jwts.builder()
                 .subject(username)
-                .issuedAt(Date.from(now))
-                .expiration(Date.from(expiry))
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + expiration))
                 .signWith(getSigningKey())
                 .compact();
     }
@@ -61,7 +54,7 @@ public class JwtUtil {
     }
 
     private boolean isTokenExpired(String token) {
-        Instant expiry = parseClaims(token).getExpiration().toInstant();
-        return expiry.isBefore(Instant.now());
+        Date expirationDate = parseClaims(token).getExpiration();
+        return expirationDate.before(new Date());
     }
 }

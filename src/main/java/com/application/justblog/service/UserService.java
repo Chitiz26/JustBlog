@@ -1,30 +1,27 @@
 package com.application.justblog.service;
 
 import com.application.justblog.entity.User;
-import com.application.justblog.exception.DuplicateResourceException;
-import com.application.justblog.exception.ResourceNotFoundException;
 import com.application.justblog.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 
 @Service
-@RequiredArgsConstructor
+@RequiredArgsConstructor   // Lombok: generates a constructor for all final fields -> Spring injects UserRepository automatically
 public class UserService {
 
     private final UserRepository userRepository;
-    private final PasswordEncoder passwordEncoder;
 
     public User createUser(User user) {
         if (userRepository.existsByUsername(user.getUsername())) {
-            throw new DuplicateResourceException("Username already taken");
+            throw new IllegalArgumentException("Username already taken");
         }
         if (userRepository.existsByEmail(user.getEmail())) {
-            throw new DuplicateResourceException("Email already registered");
+            throw new IllegalArgumentException("Email already registered");
         }
-        user.setPassword(passwordEncoder.encode(user.getPassword()));
+        // TODO: once Spring Security is added, hash the password here before saving:
+        // user.setPassword(passwordEncoder.encode(user.getPassword()));
         return userRepository.save(user);
     }
 
@@ -34,20 +31,22 @@ public class UserService {
 
     public User getUserById(Long userId) {
         return userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+                .orElseThrow(() -> new RuntimeException("User not found with id: " + userId));
     }
 
     public User updateUser(Long userId, User updatedUser) {
         User existing = getUserById(userId);
         existing.setBio(updatedUser.getBio());
         existing.setProfilePicUrl(updatedUser.getProfilePicUrl());
+        // username/email/password intentionally not updated here — handle those as separate,
+        // more guarded operations later (e.g. change-password flow with old-password check)
         return userRepository.save(existing);
     }
 
     public void deleteUser(Long userId) {
         if (!userRepository.existsById(userId)) {
-            throw new ResourceNotFoundException("User not found with id: " + userId);
+            throw new RuntimeException("User not found with id: " + userId);
         }
-        userRepository.deleteById(userId);
+        userRepository.deleteById(userId);   // cascades to their blogs, likes, comments
     }
 }
