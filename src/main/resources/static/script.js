@@ -14,6 +14,7 @@
     token: localStorage.getItem("jb_token") || null,
     userId: localStorage.getItem("jb_userId") || null,
     username: localStorage.getItem("jb_username") || null,
+    profilePicUrl: localStorage.getItem("jb_avatar") || null,
   };
 
   function isLoggedIn() {
@@ -28,6 +29,7 @@
     localStorage.setItem("jb_userId", String(userId));
     localStorage.setItem("jb_username", username);
     updateAuthUI();
+    refreshMyAvatar();   // login/register responses don't include the picture, so fetch it
   }
 
   function clearAuth() {
@@ -37,7 +39,27 @@
     localStorage.removeItem("jb_token");
     localStorage.removeItem("jb_userId");
     localStorage.removeItem("jb_username");
+    localStorage.removeItem("jb_avatar");
+    state.profilePicUrl = null;
     updateAuthUI();
+  }
+
+  // Remembers the logged-in user's picture so the nav icon can show it.
+  function setMyAvatar(url) {
+    state.profilePicUrl = url || null;
+    if (url) localStorage.setItem("jb_avatar", url);
+    else localStorage.removeItem("jb_avatar");
+    updateAuthUI();
+  }
+
+  async function refreshMyAvatar() {
+    if (!isLoggedIn()) return;
+    try {
+      const me = await api(`/api/users/${state.userId}`, { auth: true });
+      setMyAvatar(me.profilePicUrl);
+    } catch (e) {
+      /* nav simply keeps showing the initial-letter icon */
+    }
   }
 
   function updateAuthUI() {
@@ -46,7 +68,11 @@
     out.forEach((el) => (el.hidden = isLoggedIn()));
     inn.forEach((el) => (el.hidden = !isLoggedIn()));
     const navUsername = document.getElementById("nav-username");
-    if (navUsername && state.username) navUsername.textContent = state.username;
+    if (navUsername && state.username) {
+      navUsername.innerHTML =
+        avatarHtml({ username: state.username, profilePicUrl: state.profilePicUrl }, "xs") +
+        `<span>${escapeHtml(state.username)}</span>`;
+    }
   }
 
   /* ---------------------------------------------------------------------
@@ -75,6 +101,29 @@
     if (clean.length <= max) return clean;
     return clean.slice(0, max).replace(/\s+\S*$/, "") + "…";
   }
+
+  // The round "user icon" used everywhere (nav, feed, article, comments, profile).
+  // Shows the user's uploaded picture, or a circle with their first initial if they have none.
+  function avatarHtml(user, size = "sm") {
+    const name = user && user.username ? user.username : "?";
+    const initial = escapeHtml(name.charAt(0).toUpperCase());
+    const cls = `avatar avatar-${size}`;
+    if (user && user.profilePicUrl) {
+      return `<img class="${cls}" src="${escapeHtml(user.profilePicUrl)}" alt="${escapeHtml(name)}" data-initial="${initial}" />`;
+    }
+    return `<span class="${cls} avatar-fallback" aria-hidden="true">${initial}</span>`;
+  }
+
+  // If a picture file is missing or fails to load, quietly fall back to the initial-letter icon.
+  document.addEventListener("error", (e) => {
+    const img = e.target;
+    if (img && img.tagName === "IMG" && img.classList.contains("avatar")) {
+      const span = document.createElement("span");
+      span.className = img.className + " avatar-fallback";
+      span.textContent = img.dataset.initial || "?";
+      img.replaceWith(span);
+    }
+  }, true);
 
   function paragraphs(content) {
     return escapeHtml(content)
@@ -154,6 +203,30 @@
     return res.text();
   }
 
+  // Like api(), but for file uploads. It must NOT set a Content-Type header: the browser has to
+  // add its own multipart boundary, and only does so when the header is left alone.
+  async function apiUpload(path, formData) {
+    const headers = {};
+    if (state.token) headers.Authorization = "Bearer " + state.token;
+    let res;
+    try {
+      res = await fetch(path, { method: "POST", headers, body: formData });
+    } catch (networkErr) {
+      throw new Error("Can't reach the server. Is it running?");
+    }
+    if (!res.ok) {
+      if (res.status === 401) clearAuth();
+      const err = new Error(
+        res.status === 400 ? "That image couldn't be used. Use a PNG, JPG, WEBP or GIF under 5MB."
+        : res.status === 413 ? "That image is too large (max 5MB)."
+        : friendlyStatusMessage(res.status, "Couldn't upload that image.")
+      );
+      err.status = res.status;
+      throw err;
+    }
+    return res.json();
+  }
+
   /* ---------------------------------------------------------------------
      Router
      ------------------------------------------------------------------- */
@@ -165,8 +238,6 @@
     register: document.getElementById("view-register"),
     compose: document.getElementById("view-compose"),
     profile: document.getElementById("view-profile"),
-    search: document.getElementById("view-search"),
-    user: document.getElementById("view-user"),
   };
 
   function showView(name) {
@@ -193,8 +264,6 @@
     if (parts[0] === "register") return { name: "register" };
     if (parts[0] === "compose") return { name: "compose" };
     if (parts[0] === "profile") return { name: "profile" };
-    if (parts[0] === "search") return { name: "search", query: decodeURIComponent(parts.slice(1).join("/")) };
-    if (parts[0] === "user" && parts[1]) return { name: "user", id: parts[1] };
     return { name: "home" };
   }
 
@@ -209,7 +278,6 @@
 
   function route() {
     const r = parseRoute();
-    closeSearchDropdown();
     if (r.name === "home") {
       showView("home");
       loadFeed();
@@ -232,14 +300,6 @@
       if (!requireAuth("Please sign in to view your profile.")) return;
       showView("profile");
       loadProfile();
-    } else if (r.name === "search") {
-      if (!requireAuth("Please sign in to search for writers.")) return;
-      showView("search");
-      loadSearchResults(r.query);
-    } else if (r.name === "user") {
-      if (!requireAuth("Please sign in to view profiles.")) return;
-      showView("user");
-      loadUserProfile(r.id);
     }
   }
 
@@ -280,7 +340,7 @@
     return `
       <article class="feed-item">
         <h2><a href="#/post/${blog.blogId}">${escapeHtml(blog.title)}</a></h2>
-        <p class="feed-meta">By ${escapeHtml(author)} · ${escapeHtml(formatDate(blog.createdAt))}</p>
+        <p class="feed-meta">${avatarHtml(blog.author, "xs")}<span>By ${escapeHtml(author)} · ${escapeHtml(formatDate(blog.createdAt))}</span></p>
         <p class="feed-excerpt">${escapeHtml(excerpt(blog.content))} <a class="read-more" href="#/post/${blog.blogId}">Read more</a></p>
       </article>`;
   }
@@ -315,6 +375,7 @@
             <p class="eyebrow"><a href="#/">← Back to stories</a></p>
             <h1>${escapeHtml(blog.title)}</h1>
             <div class="byline">
+              ${avatarHtml(blog.author, "sm")}
               <span>By <b>${escapeHtml(author)}</b></span>
               <span class="dot">·</span>
               <span>${escapeHtml(formatDate(blog.createdAt))}</span>
@@ -380,12 +441,15 @@
         const authorName = c.user && c.user.username ? c.user.username : "Unknown";
         return `
           <div class="comment" data-comment-id="${c.commentId}">
-            ${owner ? `<button class="comment-delete" data-delete-comment="${c.commentId}" title="Delete comment">×</button>` : ""}
-            <div class="comment-head">
-              <span class="comment-author">${escapeHtml(authorName)}</span>
-              <span class="comment-date">${escapeHtml(formatDate(c.createdAt))}</span>
+            ${avatarHtml(c.user, "sm")}
+            <div class="comment-main">
+              ${owner ? `<button class="comment-delete" data-delete-comment="${c.commentId}" title="Delete comment">×</button>` : ""}
+              <div class="comment-head">
+                <span class="comment-author">${escapeHtml(authorName)}</span>
+                <span class="comment-date">${escapeHtml(formatDate(c.createdAt))}</span>
+              </div>
+              <p class="comment-body">${escapeHtml(c.content)}</p>
             </div>
-            <p class="comment-body">${escapeHtml(c.content)}</p>
           </div>`;
       })
       .join("");
@@ -632,8 +696,17 @@
 
       container.innerHTML = `
         <div class="profile-card">
-          <h2 class="profile-name">${escapeHtml(user.username)}</h2>
-          <p class="profile-email">${escapeHtml(user.email)}</p>
+          <div class="profile-header">
+            <div class="avatar-edit">
+              <div id="avatar-preview">${avatarHtml(user, "xl")}</div>
+              <button type="button" class="btn-text" id="avatar-change-btn">Change photo</button>
+              <input type="file" id="avatar-file" accept="image/png,image/jpeg,image/webp,image/gif" hidden />
+            </div>
+            <div>
+              <h2 class="profile-name">${escapeHtml(user.username)}</h2>
+              <p class="profile-email">${escapeHtml(user.email)}</p>
+            </div>
+          </div>
           <form id="bio-form">
             <div class="field">
               <label for="bio-input">Bio</label>
@@ -646,6 +719,47 @@
         <div class="feed-list" id="profile-feed">
           ${blogs.length ? blogs.map(feedItemHtml).join("") : '<p class="state-note">You haven\'t written anything yet.</p>'}
         </div>`;
+
+      setMyAvatar(user.profilePicUrl);   // keep the nav icon in sync with what's saved
+
+      const fileInput = document.getElementById("avatar-file");
+      const changeBtn = document.getElementById("avatar-change-btn");
+      const preview = document.getElementById("avatar-preview");
+      changeBtn.addEventListener("click", () => fileInput.click());
+      fileInput.addEventListener("change", async () => {
+        const file = fileInput.files[0];
+        if (!file) return;
+        if (!/^image\/(png|jpeg|webp|gif)$/.test(file.type)) {
+          showToast("Please choose a PNG, JPG, WEBP or GIF image.", "error");
+          fileInput.value = "";
+          return;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+          showToast("That image is too large (max 5MB).", "error");
+          fileInput.value = "";
+          return;
+        }
+        const localUrl = URL.createObjectURL(file);   // instant preview while uploading
+        preview.innerHTML = `<img class="avatar avatar-xl" src="${localUrl}" alt="" />`;
+        changeBtn.disabled = true;
+        changeBtn.textContent = "Uploading…";
+        try {
+          const formData = new FormData();
+          formData.append("file", file);
+          const res = await apiUpload(`/api/users/${state.userId}/profile-picture`, formData);
+          setMyAvatar(res.profilePicUrl);
+          preview.innerHTML = avatarHtml({ username: user.username, profilePicUrl: res.profilePicUrl }, "xl");
+          showToast("Profile picture updated.", "success");
+        } catch (err) {
+          preview.innerHTML = avatarHtml({ username: user.username, profilePicUrl: state.profilePicUrl }, "xl");
+          showToast(err.message, "error");
+        } finally {
+          URL.revokeObjectURL(localUrl);
+          changeBtn.disabled = false;
+          changeBtn.textContent = "Change photo";
+          fileInput.value = "";
+        }
+      });
 
       document.getElementById("bio-form").addEventListener("submit", async (e) => {
         e.preventDefault();
@@ -667,126 +781,10 @@
   }
 
   /* ---------------------------------------------------------------------
-     Search  (GET /api/users/search?query=...)
-     ------------------------------------------------------------------- */
-
-  const navSearchForm = document.getElementById("nav-search-form");
-  const navSearchInput = document.getElementById("nav-search-input");
-  const navSearchDropdown = document.getElementById("nav-search-dropdown");
-  let searchTimer = null;
-  let latestSearchId = 0;   // guards against slow, out-of-order responses
-
-  function closeSearchDropdown() {
-    navSearchDropdown.hidden = true;
-    navSearchDropdown.innerHTML = "";
-  }
-
-  function searchUsers(query) {
-    return api(`/api/users/search?query=${encodeURIComponent(query)}`, { auth: true });
-  }
-
-  navSearchInput.addEventListener("input", () => {
-    clearTimeout(searchTimer);
-    const query = navSearchInput.value.trim();
-    if (!query) {
-      closeSearchDropdown();
-      return;
-    }
-    searchTimer = setTimeout(async () => {
-      const myId = ++latestSearchId;
-      try {
-        const users = await searchUsers(query);
-        if (myId !== latestSearchId) return;   // a newer search already started
-        if (!users.length) {
-          navSearchDropdown.innerHTML = '<p class="search-empty">No writers found.</p>';
-        } else {
-          navSearchDropdown.innerHTML =
-            users.slice(0, 6).map((u) => `
-              <a class="search-hit" href="#/user/${u.userId}">
-                <span class="search-hit-name">${escapeHtml(u.username)}</span>
-                <span class="search-hit-bio">${escapeHtml(u.bio || "No bio yet")}</span>
-              </a>`).join("") +
-            `<a class="search-hit-all" href="#/search/${encodeURIComponent(query)}">See all results</a>`;
-        }
-        navSearchDropdown.hidden = false;
-      } catch (err) {
-        if (myId !== latestSearchId) return;
-        navSearchDropdown.innerHTML = `<p class="search-empty">${escapeHtml(err.message)}</p>`;
-        navSearchDropdown.hidden = false;
-      }
-    }, 250);
-  });
-
-  // Enter -> full results page
-  navSearchForm.addEventListener("submit", (e) => {
-    e.preventDefault();
-    const query = navSearchInput.value.trim();
-    if (query) navigate(`#/search/${encodeURIComponent(query)}`);
-  });
-
-  // Escape or clicking elsewhere closes the dropdown
-  navSearchInput.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") closeSearchDropdown();
-  });
-  document.addEventListener("click", (e) => {
-    if (!navSearchForm.contains(e.target)) closeSearchDropdown();
-  });
-
-  async function loadSearchResults(query) {
-    const heading = document.getElementById("search-heading");
-    const results = document.getElementById("search-results");
-    navSearchInput.value = query;
-    heading.textContent = query ? `Writers matching “${query}”` : "Writers";
-    if (!query) {
-      results.innerHTML = '<p class="state-note">Type a username in the search bar above.</p>';
-      return;
-    }
-    results.innerHTML = '<p class="loading-note">Searching…</p>';
-    try {
-      const users = await searchUsers(query);
-      if (!users.length) {
-        results.innerHTML = `<p class="state-note">No writers found matching “${escapeHtml(query)}”.</p>`;
-        return;
-      }
-      results.innerHTML = `<div class="user-result-list">${users.map((u) => `
-        <a class="user-result" href="#/user/${u.userId}">
-          <span class="user-result-name">${escapeHtml(u.username)}</span>
-          <span class="user-result-bio">${escapeHtml(excerpt(u.bio || "No bio yet.", 140))}</span>
-        </a>`).join("")}</div>`;
-    } catch (err) {
-      results.innerHTML = `<p class="state-note">${escapeHtml(err.message)}</p>`;
-    }
-  }
-
-  async function loadUserProfile(userId) {
-    const container = document.getElementById("user-profile-content");
-    container.innerHTML = '<p class="loading-note">Loading profile…</p>';
-    try {
-      const [user, blogs] = await Promise.all([
-        api(`/api/users/${userId}`, { auth: true }),
-        api(`/api/blogs/author/${userId}`).catch(() => []),
-      ]);
-      const isMe = String(user.userId) === String(state.userId);
-      container.innerHTML = `
-        <div class="page-head">
-          <p class="eyebrow"><a href="javascript:history.back()">← Back</a></p>
-          <h1>${escapeHtml(user.username)}</h1>
-          ${user.bio ? `<p class="page-sub">${escapeHtml(user.bio)}</p>` : ""}
-          ${isMe ? '<p class="page-sub"><a href="#/profile" style="color:var(--nav);border-bottom:1px solid currentColor;">This is you — edit your profile</a></p>' : ""}
-        </div>
-        <h3 style="font-family:var(--font-display); font-weight:600; margin-bottom:14px;">Stories by ${escapeHtml(user.username)}</h3>
-        <div class="feed-list">
-          ${blogs.length ? blogs.map(feedItemHtml).join("") : '<p class="state-note">No stories published yet.</p>'}
-        </div>`;
-    } catch (err) {
-      container.innerHTML = `<p class="state-note">${escapeHtml(err.message)}</p>`;
-    }
-  }
-
-  /* ---------------------------------------------------------------------
      Boot
      ------------------------------------------------------------------- */
 
   updateAuthUI();
+  refreshMyAvatar();
   route();
 })();
