@@ -1,5 +1,6 @@
 package com.application.justblog.service;
 
+import com.application.justblog.dto.UserSearchResult;
 import com.application.justblog.entity.User;
 import com.application.justblog.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -41,6 +42,17 @@ public class UserService {
         // username/email/password intentionally not updated here — handle those as separate,
         // more guarded operations later (e.g. change-password flow with old-password check)
         return userRepository.save(existing);
+    }
+
+    // Used by GET /api/users/search?query=...  Returns at most 20 matches, safe fields only.
+    public List<UserSearchResult> searchUsers(String query) {
+        if (query == null || query.isBlank()) {
+            return List.of();
+        }
+        return userRepository.findByUsernameContainingIgnoreCase(query.trim()).stream()
+                .limit(20)
+                .map(u -> new UserSearchResult(u.getUserId(), u.getUsername(), u.getBio()))
+                .toList();
     }
 
     public void deleteUser(Long userId) {

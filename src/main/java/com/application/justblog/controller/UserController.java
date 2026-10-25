@@ -1,5 +1,5 @@
 package com.application.justblog.controller;
-
+import com.application.justblog.dto.UserSearchResult;
 import com.application.justblog.entity.User;
 import com.application.justblog.service.UserService;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +25,13 @@ public class UserController {
     @GetMapping
     public ResponseEntity<List<User>> getAllUsers() {
         return ResponseEntity.ok(userService.getAllUsers());        // 200
+    }
+
+    // e.g. GET /api/users/search?query=chi
+    // (Spring always prefers the literal "/search" over the "/{userId}" pattern, so there is no clash.)
+    @GetMapping("/search")
+    public ResponseEntity<List<UserSearchResult>> searchUsers(@RequestParam("query") String query) {
+        return ResponseEntity.ok(userService.searchUsers(query));
     }
 
     @GetMapping("/{userId}")
