@@ -165,6 +165,8 @@
     register: document.getElementById("view-register"),
     compose: document.getElementById("view-compose"),
     profile: document.getElementById("view-profile"),
+    search: document.getElementById("view-search"),
+    user: document.getElementById("view-user"),
   };
 
   function showView(name) {
@@ -191,6 +193,8 @@
     if (parts[0] === "register") return { name: "register" };
     if (parts[0] === "compose") return { name: "compose" };
     if (parts[0] === "profile") return { name: "profile" };
+    if (parts[0] === "search") return { name: "search", query: decodeURIComponent(parts.slice(1).join("/")) };
+    if (parts[0] === "user" && parts[1]) return { name: "user", id: parts[1] };
     return { name: "home" };
   }
 
@@ -205,6 +209,7 @@
 
   function route() {
     const r = parseRoute();
+    closeSearchDropdown();
     if (r.name === "home") {
       showView("home");
       loadFeed();
@@ -227,6 +232,14 @@
       if (!requireAuth("Please sign in to view your profile.")) return;
       showView("profile");
       loadProfile();
+    } else if (r.name === "search") {
+      if (!requireAuth("Please sign in to search for writers.")) return;
+      showView("search");
+      loadSearchResults(r.query);
+    } else if (r.name === "user") {
+      if (!requireAuth("Please sign in to view profiles.")) return;
+      showView("user");
+      loadUserProfile(r.id);
     }
   }
 
@@ -648,6 +661,123 @@
           showToast(err.message, "error");
         }
       });
+    } catch (err) {
+      container.innerHTML = `<p class="state-note">${escapeHtml(err.message)}</p>`;
+    }
+  }
+
+  /* ---------------------------------------------------------------------
+     Search  (GET /api/users/search?query=...)
+     ------------------------------------------------------------------- */
+
+  const navSearchForm = document.getElementById("nav-search-form");
+  const navSearchInput = document.getElementById("nav-search-input");
+  const navSearchDropdown = document.getElementById("nav-search-dropdown");
+  let searchTimer = null;
+  let latestSearchId = 0;   // guards against slow, out-of-order responses
+
+  function closeSearchDropdown() {
+    navSearchDropdown.hidden = true;
+    navSearchDropdown.innerHTML = "";
+  }
+
+  function searchUsers(query) {
+    return api(`/api/users/search?query=${encodeURIComponent(query)}`, { auth: true });
+  }
+
+  navSearchInput.addEventListener("input", () => {
+    clearTimeout(searchTimer);
+    const query = navSearchInput.value.trim();
+    if (!query) {
+      closeSearchDropdown();
+      return;
+    }
+    searchTimer = setTimeout(async () => {
+      const myId = ++latestSearchId;
+      try {
+        const users = await searchUsers(query);
+        if (myId !== latestSearchId) return;   // a newer search already started
+        if (!users.length) {
+          navSearchDropdown.innerHTML = '<p class="search-empty">No writers found.</p>';
+        } else {
+          navSearchDropdown.innerHTML =
+            users.slice(0, 6).map((u) => `
+              <a class="search-hit" href="#/user/${u.userId}">
+                <span class="search-hit-name">${escapeHtml(u.username)}</span>
+                <span class="search-hit-bio">${escapeHtml(u.bio || "No bio yet")}</span>
+              </a>`).join("") +
+            `<a class="search-hit-all" href="#/search/${encodeURIComponent(query)}">See all results</a>`;
+        }
+        navSearchDropdown.hidden = false;
+      } catch (err) {
+        if (myId !== latestSearchId) return;
+        navSearchDropdown.innerHTML = `<p class="search-empty">${escapeHtml(err.message)}</p>`;
+        navSearchDropdown.hidden = false;
+      }
+    }, 250);
+  });
+
+  // Enter -> full results page
+  navSearchForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const query = navSearchInput.value.trim();
+    if (query) navigate(`#/search/${encodeURIComponent(query)}`);
+  });
+
+  // Escape or clicking elsewhere closes the dropdown
+  navSearchInput.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeSearchDropdown();
+  });
+  document.addEventListener("click", (e) => {
+    if (!navSearchForm.contains(e.target)) closeSearchDropdown();
+  });
+
+  async function loadSearchResults(query) {
+    const heading = document.getElementById("search-heading");
+    const results = document.getElementById("search-results");
+    navSearchInput.value = query;
+    heading.textContent = query ? `Writers matching “${query}”` : "Writers";
+    if (!query) {
+      results.innerHTML = '<p class="state-note">Type a username in the search bar above.</p>';
+      return;
+    }
+    results.innerHTML = '<p class="loading-note">Searching…</p>';
+    try {
+      const users = await searchUsers(query);
+      if (!users.length) {
+        results.innerHTML = `<p class="state-note">No writers found matching “${escapeHtml(query)}”.</p>`;
+        return;
+      }
+      results.innerHTML = `<div class="user-result-list">${users.map((u) => `
+        <a class="user-result" href="#/user/${u.userId}">
+          <span class="user-result-name">${escapeHtml(u.username)}</span>
+          <span class="user-result-bio">${escapeHtml(excerpt(u.bio || "No bio yet.", 140))}</span>
+        </a>`).join("")}</div>`;
+    } catch (err) {
+      results.innerHTML = `<p class="state-note">${escapeHtml(err.message)}</p>`;
+    }
+  }
+
+  async function loadUserProfile(userId) {
+    const container = document.getElementById("user-profile-content");
+    container.innerHTML = '<p class="loading-note">Loading profile…</p>';
+    try {
+      const [user, blogs] = await Promise.all([
+        api(`/api/users/${userId}`, { auth: true }),
+        api(`/api/blogs/author/${userId}`).catch(() => []),
+      ]);
+      const isMe = String(user.userId) === String(state.userId);
+      container.innerHTML = `
+        <div class="page-head">
+          <p class="eyebrow"><a href="javascript:history.back()">← Back</a></p>
+          <h1>${escapeHtml(user.username)}</h1>
+          ${user.bio ? `<p class="page-sub">${escapeHtml(user.bio)}</p>` : ""}
+          ${isMe ? '<p class="page-sub"><a href="#/profile" style="color:var(--nav);border-bottom:1px solid currentColor;">This is you — edit your profile</a></p>' : ""}
+        </div>
+        <h3 style="font-family:var(--font-display); font-weight:600; margin-bottom:14px;">Stories by ${escapeHtml(user.username)}</h3>
+        <div class="feed-list">
+          ${blogs.length ? blogs.map(feedItemHtml).join("") : '<p class="state-note">No stories published yet.</p>'}
+        </div>`;
     } catch (err) {
       container.innerHTML = `<p class="state-note">${escapeHtml(err.message)}</p>`;
     }

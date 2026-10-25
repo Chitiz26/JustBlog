@@ -31,6 +31,10 @@
       </span>
 
             <span class="auth-in" data-auth="in" hidden>
+        <form class="nav-search" id="nav-search-form" role="search" autocomplete="off">
+          <input type="search" id="nav-search-input" placeholder="Search writers…" aria-label="Search writers" />
+          <div class="nav-search-dropdown" id="nav-search-dropdown" hidden></div>
+        </form>
         <a href="#/compose">New post</a>
         <a href="#/profile" id="nav-username">Account</a>
         <a href="#/" id="logout-link">Sign out</a>
@@ -150,6 +154,26 @@
                         <button type="button" class="btn-text" id="compose-cancel">Cancel</button>
                     </div>
                 </form>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ SEARCH RESULTS ============ -->
+    <section class="view" id="view-search" hidden>
+        <div class="wrap">
+            <div class="page-head">
+                <p class="eyebrow">Search</p>
+                <h1 id="search-heading">Writers</h1>
+            </div>
+            <div id="search-results"></div>
+        </div>
+    </section>
+
+    <!-- ============ ANOTHER WRITER'S PROFILE ============ -->
+    <section class="view" id="view-user" hidden>
+        <div class="wrap">
+            <div id="user-profile-content">
+                <p class="loading-note">Loading profile…</p>
             </div>
         </div>
     </section>
