@@ -55,6 +55,8 @@ public class SecurityConfig {
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/blogs/**").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/comments/**").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/likes/**").permitAll()
+                        // profile pictures must be visible to everyone, including logged-out visitors
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/uploads/**").permitAll()
                         // Everything else requires a valid token
                         .anyRequest().authenticated()
                 )
